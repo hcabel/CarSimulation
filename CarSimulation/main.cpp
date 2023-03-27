@@ -1,22 +1,15 @@
 #include <iostream>
 #include <array>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <math.h>
 #include <assert.h>
 
-#define CARS_AMOUNT 1
+#define CARS_AMOUNT 20
 
-#define LOG(Format, ...) \
-	std::printf(Format, __VA_ARGS__); \
-	std::printf("\n");
-
-#define CHECKF(Condition, Format, ...) \
-	if (!(Condition)) \
-	{ \
-		LOG(Format, __VA_ARGS__); \
-		assert(false); \
-	}
+constexpr float MinimumCarsAcceleration = 0.1f;
+constexpr float MinimumCarsMaxSpeed = 0.25f;
 
 struct CustomFloat
 {
@@ -32,12 +25,16 @@ struct CustomFloat
 	operator long long() const { return (static_cast<long long>(std::floor(value))); }
 
 	CustomFloat operator+(const CustomFloat& other) const { return (CustomFloat{ value + other.value }); }
+	CustomFloat operator+(const float& other) const { return (CustomFloat{ value + other }); }
 	CustomFloat operator-(const CustomFloat& other) const { return (CustomFloat{ value - other.value }); }
+	CustomFloat operator-(const float& other) const { return (CustomFloat{ value - other }); }
 	CustomFloat operator-() const { return (CustomFloat{ -value }); }
 	CustomFloat operator*(const CustomFloat& other) const { return (CustomFloat{ value * other.value }); }
 	CustomFloat operator*(const float& other) const { return (CustomFloat{ value * other }); }
 	CustomFloat operator/(const CustomFloat& other) const { return (CustomFloat{ value / other.value }); }
 	bool operator==(const CustomFloat& other) const { return (value == other.value); }
+	bool operator==(const int other) const { return (value == other); }
+	bool operator==(const float other) const { return (value == other); }
 
 	CustomFloat& operator+=(const CustomFloat& other) { value += other.value; return (*this); }
 	CustomFloat& operator-=(const CustomFloat& other) { value -= other.value; return (*this); }
@@ -56,10 +53,23 @@ struct CustomFloat
 	bool operator>(const uint8_t other) const { return (value > other); }
 	bool operator<=(const uint8_t other) const { return (value <= other); }
 	bool operator>=(const uint8_t other) const { return (value >= other); }
+	bool operator<(const float other) const { return (value < other); }
+	bool operator>(const float other) const { return (value > other); }
+	bool operator<=(const float other) const { return (value <= other); }
+	bool operator>=(const float other) const { return (value >= other); }
 
 	bool operator!=(const CustomFloat& other) const { return (value != other.value); }
 	bool operator!=(const int other) const { return (value != other); }
 	bool operator!=(const uint8_t other) const { return (value != other); }
+
+	CustomFloat Decimal() const
+	{
+		return (value - std::floor(value));
+	}
+	bool Equal(const CustomFloat other, const float precission) const
+	{
+		return (std::abs(this->value - other.value) < precission);
+	}
 };
 
 std::ostream& operator<<(std::ostream& os, const CustomFloat& vector)
@@ -85,6 +95,10 @@ struct Vector2D
 	Vector2D operator-(const Vector2D& other) const
 	{
 		return (Vector2D{ x - other.x, y - other.y });
+	}
+	Vector2D operator-(const float other) const
+	{
+		return (Vector2D{ x - other, y - other });
 	}
 	Vector2D operator-() const
 	{
@@ -115,19 +129,40 @@ struct Vector2D
 		return (x != other.x || y != other.y);
 	}
 
-	Vector2D Round() const { return (Vector2D{ static_cast<int>(std::round(x)), static_cast<int>(std::round(y)) }); }
+	Vector2D Round(const float precision = 0.0f) const
+	{
+		if (precision == 0.0f)
+			return (Vector2D{ std::round(x.value), std::round(y.value) });
+		return (Vector2D{ std::round(x.value / precision) * precision, std::round(y.value / precision) * precision });
+	}
 	Vector2D Normalize() const
 	{
 		CustomFloat length = std::sqrt(x * x + y * y);
+		if (length == 0.0f)
+			return (Vector2D{ 0, 0 });
 		return (Vector2D{ x / length, y / length });
+	}
+	float Length() const
+	{
+		return (std::sqrt(x * x + y * y));
+	}
+	float Dot(const Vector2D& other) const
+	{
+		return (x * other.x + y * other.y);
+	}
+	float Angle(const Vector2D& other) const
+	{
+		return (std::acos(Dot(other) / (Length() * other.Length())));
 	}
 };
 
 std::ostream& operator<<(std::ostream& os, const Vector2D& vector)
 {
-	os << "(" << vector.x << ", " << vector.y << ")";
+	os << "(x" << vector.x << ", y" << vector.y << ")";
 	return (os);
 }
+
+#define NO_DIRECTION Vector2D(0.0f, 0.0f)
 
 // Direction of the track
 #define UP 'U'
@@ -145,13 +180,13 @@ static Vector2D GetDirectionVector(char direction)
 	switch (direction)
 	{
 	case UP: return (Vector2D{ 0, -1 });
-	case UP_RIGHT: return (Vector2D{ 0.707107f, -0.707107f }); // Nornalize
+	case UP_RIGHT: return (Vector2D{ 1, -1 }); 
 	case RIGHT: return (Vector2D{ 1, 0 });
-	case RIGHT_DOWN: return (Vector2D{ 0.707107f, 0.707107f }); // Nornalize
+	case RIGHT_DOWN: return (Vector2D{ 1, 1 }); 
 	case DOWN: return (Vector2D{ 0, 1 });
-	case DOWN_LEFT: return (Vector2D{ -0.707107f, 0.707107f }); // Nornalize
+	case DOWN_LEFT: return (Vector2D{ -1, 1 }); 
 	case LEFT: return (Vector2D{ -1, 0 });
-	case LEFT_UP: return (Vector2D{ -0.707107f, -0.707107f }); // Nornalize
+	case LEFT_UP: return (Vector2D{ -1, -1 });
 	case INTERSECTION: return (Vector2D{ 0, 0 });
 	default: return (Vector2D{ 0, 0 });
 	}
@@ -179,6 +214,13 @@ public:
 			}
 		}
 	}
+	char GetTrackChar(Vector2D position) const
+	{
+		if (position.x >= 0.0f && position.x < s_TrackWidth
+			&& position.y >= 0.0f && position.y < s_TrackHeight)
+			return (m_Track[position.y][position.x]);
+		return (' ');
+	}
 
 	/* Tell if the given position is a road or not */
 	bool IsRoad(Vector2D position) const { return (IsRoad(m_Track[position.y][position.x])); }
@@ -189,6 +231,11 @@ public:
 			|| character == DOWN || character == DOWN_LEFT || character == LEFT || character == LEFT_UP)
 			return (true);
 		return (false);
+	}
+	
+	Vector2D SnapPosition(const Vector2D& pos) const
+	{
+		return (Vector2D{ std::floor(pos.x), std::floor(pos.y) });
 	}
 
 public:
@@ -212,6 +259,7 @@ public:
 					startPosition.y = 0;
 			}
 		}
+		// center the spawn point to the middle of the tile
 		startPosition.x += 0.5f;
 		startPosition.y += 0.5f;
 		return (startPosition);
@@ -222,7 +270,7 @@ public:
 		char character = m_Track[position.y][position.x];
 		if (character != ' ')
 			return (GetDirectionVector(character));
-		return (Vector2D(0, 0));
+		return (NO_DIRECTION);
 	}
 
 private:
@@ -252,14 +300,14 @@ private:
 		{ ' ', ' ', ' ', ' ', _LU, _LU, _LE, _LE, _LE, _DL, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', _RD, _RI, _RI, _RI, _UR, _UR, ' ', ' ', ' ', ' ' },
 		{ ' ', ' ', ' ', ' ', ' ', _LU, _LE, _LE, _LE, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', _RI, _RI, _RI, _UR, ' ', ' ', ' ', ' ', ' ' }
 	};
-#define _UP
-#define _UR
-#define _RI
-#define _RD
-#define _DO
-#define _DL
-#define _LE
-#define _LU
+#undef _UP
+#undef _UR
+#undef _RI
+#undef _RD
+#undef _DO
+#undef _DL
+#undef _LE
+#undef _LU
 };
 
 /**
@@ -269,35 +317,120 @@ class Cars
 {
 
 public:
-	Cars(const FigureEightTrack& track, uint8_t number, Vector2D spawnPoint, float speed = -1)
-		: m_Track(track), m_Number(number), m_Position(spawnPoint), m_Speed(speed == -1 ? static_cast<float>(std::rand()) / RAND_MAX : speed)
-	{}
+	Cars(const FigureEightTrack& track, uint8_t number, Vector2D spawnPoint, float acceleration = -1, float maxSpeed = -1)
+		: m_Track(track),
+		m_Number(number),
+		m_Position(spawnPoint),
+		// TODO: fix the random to be more evenly random (using std::max will just clamp the low value which make getting the lowest value more likely)
+		m_MaxSpeed(std::max(MinimumCarsAcceleration, maxSpeed == -1 ? static_cast<float>(std::rand()) / RAND_MAX : maxSpeed)),
+		m_Acceleration(std::max(MinimumCarsMaxSpeed, acceleration == -1 ? static_cast<float>(std::rand()) / RAND_MAX : acceleration))
+	{
+		std::cout << "Car " << GetDisplayNumber() << " spawned at " << m_Position
+			<< " maxspeed: " << m_MaxSpeed << " acceleration: " << m_Acceleration
+			<< std::endl;
+	}
 
 	void Update()
 	{
-		Vector2D newDirection = FindNewDirection();
+		// accelerate the car
+		m_Speed = std::min(m_MaxSpeed, m_Speed + m_Acceleration * m_MaxSpeed);
 
-		// Correct the newDirection to keep the car at the center of the track
-		Vector2D
+		m_ForwardVector = FindNewDirection();
 
-		m_Position = m_Position + m_ForwardVector * m_Speed;
-		std::cout << "Car " << static_cast<int>(m_Number) << " is at " << m_Position << std::endl;
+		Vector2D trackTilePosition = m_Track.SnapPosition(m_Position);
+		char trackChar = m_Track.GetTrackChar(trackTilePosition);
+		Vector2D trackVector = GetDirectionVector(trackChar == INTERSECTION ? m_Direction : trackChar);
+		if (m_Track.GetTrackChar(trackTilePosition + Vector2D(0.5f, 0.5f) + trackVector) == INTERSECTION)
+		{
+			// check if traffic light truned on for this car
+			int evenOrOdd = (trackChar == RIGHT_DOWN ? 0 : 1);
+
+			// check whether or the the traffic light is on
+			constexpr int lightSwitchDurationInSeconds = 5;
+			int secondsSinceEpoch = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			int secondsInCurrentMinute = secondsSinceEpoch % 60;
+			// stop the car if the light is off (TODO: implement deceleration instead of instant stop)
+			if ((secondsInCurrentMinute / lightSwitchDurationInSeconds) % 2 == evenOrOdd)
+				m_Speed = 0;
+		}
+
+
+		// Update the position of the car
+		m_Position = m_Position + (m_ForwardVector * m_Speed);
+	}
+
+	bool Collide(Vector2D position) const
+	{
+		float carSize = 0.25f;
+		return (m_Position - position).Length() < carSize;
 	}
 
 private:
-	Vector2D FindNewDirection() const
+	Vector2D FindNewDirection()
 	{
-		Vector2D newDirection = m_Track.GetTrackDirection(m_Position.Round());
-		// if the direction is 0, 0 this mean that the track does not provide any direction so we keep going forward
-		if (newDirection == Vector2D(0, 0)) {
-			return (m_ForwardVector);
+		char newDirection = m_Track.GetTrackChar(m_Track.SnapPosition(m_Position));
+
+		// Change the direction unless it's an INTERSECTION
+		if (newDirection != INTERSECTION)
+			m_Direction = newDirection;
+
+		// Convert char direction to a vector
+		Vector2D directionVector = GetDirectionVector(m_Direction);
+		if (directionVector == NO_DIRECTION)
+			return (directionVector);
+
+		// Find target point
+		Vector2D targetPointDirection;
+		Vector2D targetPoint = m_Position;
+		float forward = 0;
+		float angle = 180.0f;
+		while (std::abs(angle) >= 45.0f || (targetPoint - m_Position).Length() <= m_Speed / 2)
+		{
+			targetPoint = m_Track.SnapPosition(m_Position + directionVector * forward) + Vector2D(0.5f, 0.5f);
+			switch (m_Direction)
+			{
+			case UP:
+				targetPoint.y -= 0.5f;
+				break;
+			case UP_RIGHT:
+				targetPoint.y -= 0.5f;
+				targetPoint.x += 0.5f;
+				break;
+			case RIGHT:
+				targetPoint.x += 0.5f;
+				break;
+			case RIGHT_DOWN:
+				targetPoint.y += 0.5f;
+				targetPoint.x += 0.5f;
+				break;
+			case DOWN:
+				targetPoint.y += 0.5f;
+				break;
+			case DOWN_LEFT:
+				targetPoint.y += 0.5f;
+				targetPoint.x -= 0.5f;
+				break;
+			case LEFT:
+				targetPoint.x -= 0.5f;
+				break;
+			case LEFT_UP:
+				targetPoint.y -= 0.5f;
+				targetPoint.x -= 0.5f;
+				break;
+			default:
+				break;
+			}
+			targetPointDirection = targetPoint - m_Position;
+			angle = targetPointDirection.Angle(m_ForwardVector);
+			forward++;
 		}
-		return (newDirection);
+		return (targetPointDirection.Normalize());
 	}
 
 public:
 	Vector2D GetPosition() const { return (m_Position); }
 	uint8_t GetNumber() const { return (m_Number); }
+	char GetDisplayNumber() const { return (static_cast<char>(m_Number + static_cast<uint8_t>('0'))); }
 
 private:
 	/** Reference onto the track that the cars is currently driving onto */
@@ -305,11 +438,20 @@ private:
 	/** Id of the car */
 	const uint8_t m_Number;
 	/** Position of the car */
+
+	/** Position of the car */
 	Vector2D m_Position;
-	/** Direction where the car is heading */
+	/** unit vector representing where the car is heading */
 	Vector2D m_ForwardVector;
-	/* Car speed */
-	float m_Speed;
+	/** char representing the general direction your should go to follow the track */
+	char m_Direction;
+	/* Car max speed, (between 0 -> 1) */
+	float m_MaxSpeed;
+	/* Car current speed (between 0 -> 1) */
+	float m_Speed = 0.0f;
+	/* Car acceleration relative to max speed (.1 acc equal to + .05 speed if maxspeed = 0.5) */
+	float m_Acceleration;
+
 };
 /**
  * Render the game state onto the console, using ASCII characters.
@@ -318,33 +460,97 @@ class AsciiRenderer
 {
 
 public:
+	AsciiRenderer()
+	{
+		m_Buffer.resize(FigureEightTrack::s_TrackHeight);
+		for (auto& line : m_Buffer)
+			line.resize(FigureEightTrack::s_TrackWidth);
+	}
+
+public:
 	void Render(const FigureEightTrack& track, const std::array<Cars*, CARS_AMOUNT>& cars)
 	{
+		for (auto& line : m_Buffer)
+		{
+			line.clear();
+			line.resize(FigureEightTrack::s_TrackWidth, ' ');
+		}
 		// Clear the screen
-	//	std::system("cls");
+		std::system("cls");
 
 		// duplicate the track
 		char trackArray[FigureEightTrack::s_TrackHeight][FigureEightTrack::s_TrackWidth];
 		track.GetTrackCopy(trackArray);
 		for (uint8_t y = 0; y < FigureEightTrack::s_TrackHeight; y++)
 			for (uint8_t x = 0; x < FigureEightTrack::s_TrackWidth; x++)
-				trackArray[y][x] = convertDirectionToDisplayChar(trackArray[y][x]);
+				m_Buffer[y][x] = convertDirectionToDisplayChar(trackArray[y][x]);
 
 		// Draw the cars onto the trackArray
 		for (const Cars* car : cars)
 		{
-			Vector2D carPosition = car->GetPosition().Round();
-			char carNumber = static_cast<char>(car->GetNumber() + static_cast<uint8_t>('0'));
-			trackArray[carPosition.y][carPosition.x] = carNumber;
+			Vector2D carPosition = track.SnapPosition(car->GetPosition());
+			char carNumber = car->GetDisplayNumber(); 
+			m_Buffer[static_cast<int>(carPosition.y)][static_cast<int>(carPosition.x)] = carNumber;
 		}
 
-		// Print the trackArray
-		for (uint8_t y = 0; y < FigureEightTrack::s_TrackHeight; y++)
+		// print zoom level (0.1 per char)
+		Vector2D carPos = Vector2D(FigureEightTrack::s_TrackWidth / 2.0f, FigureEightTrack::s_TrackHeight / 2.0f).Round(0.1f);
+		float zoomSizeX = 14;
+		float zoomSizeY = 6;
+		float zoomStep = 0.25f;
+		int bufferYLineIndex = 0;
+		for (CustomFloat y = carPos.y - zoomSizeY; y < carPos.y + zoomSizeY; y += zoomStep)
 		{
-			for (uint8_t x = 0; x < FigureEightTrack::s_TrackWidth; x++)
-				std::cout << trackArray[y][x];
-			std::cout << '\n';
+			for (CustomFloat x = carPos.x - zoomSizeX; x < carPos.x + zoomSizeX; x += zoomStep)
+			{
+				char toDisplay;
+				Vector2D pos = Vector2D(x, y);
+				int collideCarIndex = -1;
+				for (int i = 0; i < cars.size(); i++)
+				{
+					if (cars[i]->Collide(pos))
+					{
+						collideCarIndex = i;
+						break;
+					}
+				}
+
+				if (collideCarIndex != -1)
+					toDisplay = cars[collideCarIndex]->GetDisplayNumber();
+				/*else if (pos.y.Decimal().Equal(1.0f, 0.025f) || pos.y.Decimal().Equal(0.0f, 0.025f)
+					|| pos.x.Decimal().Equal(1.0f, 0.025f) || pos.x.Decimal().Equal(0.0f, 0.025f))
+				{
+					toDisplay = '+';
+				}*/
+				else
+				{
+					char dir = track.GetTrackChar(track.SnapPosition(pos));
+					toDisplay = convertDirectionToDisplayChar(dir);
+				}
+
+				m_Buffer[bufferYLineIndex].push_back(toDisplay);
+			}
+			bufferYLineIndex++;
+			if (bufferYLineIndex >= m_Buffer.size())
+			{
+				m_Buffer.resize(m_Buffer.size() + 1);
+				// fill with empty spaces
+				m_Buffer.back().resize(FigureEightTrack::s_TrackWidth, ' ');
+			}
 		}
+
+		// print the all buffer in one shot to avoid flickering (add \n at the end of each line)
+		int allocationSize = 0;
+		for (auto& line : m_Buffer)
+			allocationSize += line.size() + 1;
+		std::string buffer;
+		buffer.reserve(allocationSize);
+		for (auto& line : m_Buffer)
+		{
+			buffer.append(line.begin(), line.end());
+			buffer.push_back('\n');
+		}
+		std::cout << buffer;
 	}
 private:
 	char convertDirectionToDisplayChar(char dir)
@@ -359,13 +565,16 @@ private:
 			return ('/');
 		else if (dir == INTERSECTION)
 			return ('X');
-		return ('.');
+		return (' ');
 	}
+
+private:
+		std::vector<std::vector<char>> m_Buffer;
 };
 
 int main()
 {
-	// set rand seed otherwise will always have the same result for out game RNG
+	// set rand seed otherwise will always have the same RNG
 	std::srand(time(nullptr));
 
 	std::array<Cars*, CARS_AMOUNT> cars;
@@ -375,8 +584,7 @@ int main()
 	for (int i = 0; i < CARS_AMOUNT; i++)
 	{
 		Vector2D spawnPoint = track.GetSpawnPoint();
-
-		cars[i] = new Cars(track, i + 1, spawnPoint, 0.1f);
+		cars[i] = new Cars(track, i + 1, spawnPoint);
 	}
 
 	while (true)
