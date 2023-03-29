@@ -67,6 +67,7 @@ public:
 		// Accelerate or stop the car if there is an intersection ahead
 		// TODO: implement deceleration instead of instant stop
 		if (IsNextTileAnIntersection(currentTrackTilePosition, GetDirectionVector(m_LastTrackDirection))
+			&& currentTrackTileDirectionChar != INTERSECTION
 			&& IsNextIntersectionRedLightForMe(m_LastTrackDirection) == false)
 		{
 			m_Speed = 0.0f;
@@ -186,13 +187,25 @@ private:
 		uint64_t amountOfSecondsSinceEpoch = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		int amountOfSecondsElapseInCurrentMinute = static_cast<int>(amountOfSecondsSinceEpoch % NumberOfSecondInAMinute);
 
-		// If it's were moving right and down, then the light is Green if the number of second in the current minute divided by the light switch interval is even
-		int evenOrOdd = (trackDirectionChar == RIGHT_DOWN ? 0 : 1);
-
-		// stop the car if the light is off (TODO: implement deceleration instead of instant stop)
-		if ((amountOfSecondsElapseInCurrentMinute / LightSwitchIntervalInSecond) % 2 == evenOrOdd)
+		int moduloIndex = GetTraficLightModuloIndex(trackDirectionChar);
+		if ((amountOfSecondsElapseInCurrentMinute / LightSwitchIntervalInSecond) % 4 == moduloIndex)
 			return true;
 		return false;
+	}
+
+	/** This function should be in a traffic light class */
+	int GetTraficLightModuloIndex(const char trackDirectionChar) const
+	{
+		if (trackDirectionChar == RIGHT_DOWN || trackDirectionChar == LEFT_UP)
+			return 0;
+		else if (trackDirectionChar == UP_RIGHT || trackDirectionChar == DOWN_LEFT)
+			return 1;
+		else if (trackDirectionChar == RIGHT || trackDirectionChar == LEFT)
+			return 2;
+		else if (trackDirectionChar == UP || trackDirectionChar == DOWN)
+			return 3;
+
+		assert(false);
 	}
 
 	/**

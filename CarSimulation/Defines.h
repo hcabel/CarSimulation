@@ -12,7 +12,7 @@
 
 // So I didn't implement switching lane, and unless the car is fast enough to skip the next car it will get stuck behind lol
 // Turn this define to 1 to see all the car in a traffic jam
-#define TRAFFIC_JAM_MODE 0
+#define TRAFFIC_JAM_MODE 1
 
 constexpr float MinimumCarsAcceleration = 0.1f;
 constexpr float MinimumCarsMaxSpeed = 0.25f;
