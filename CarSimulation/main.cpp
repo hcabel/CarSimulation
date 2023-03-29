@@ -6,6 +6,8 @@
 #include <chrono>
 #include <thread>
 
+#define REFRESH_DURATION_IN_MS 100
+
 int main()
 {
 	// set rand seed otherwise will always have the same RNG
@@ -18,9 +20,9 @@ int main()
 	for (int i = 0; i < CARS_AMOUNT; i++)
 	{
 		Vector2D spawnPoint = track.GetSpawnPoint();
-		cars[i] = new Car(track, i + 1, spawnPoint);
+		cars[i] = new Car(track, i, spawnPoint);
+		track.RegisterNewCarOnTrack(cars[i]);
 	}
-
 	while (true)
 	{
 		renderer.Render(track, cars);
@@ -29,7 +31,7 @@ int main()
 		{
 			car->Move();
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::this_thread::sleep_for(std::chrono::milliseconds(REFRESH_DURATION_IN_MS));
 	}
 
 	// delete cars
