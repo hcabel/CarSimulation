@@ -1,44 +1,78 @@
 #include "Renderer.h"
 
-void AsciiRenderer::Render(const FigureEightTrack& track, const std::array<Car*, CARS_AMOUNT>& cars)
+void AsciiRenderer::Render(const ATrack& track, const std::array<std::shared_ptr<Car>, CARS_AMOUNT>& cars)
 {
 	for (auto& line : m_Buffer)
 	{
 		line.clear();
-		line.resize(FigureEightTrack::s_TrackWidth, ' ');
+		line.resize(track.GetWidth(), ' ');
 	}
 	// Clear the screen
 	std::system("cls");
 
-	// duplicate the track
-	char trackArray[FigureEightTrack::s_TrackHeight][FigureEightTrack::s_TrackWidth];
-	track.GetTrackCopy(trackArray);
-	for (uint8_t y = 0; y < FigureEightTrack::s_TrackHeight; y++)
-		for (uint8_t x = 0; x < FigureEightTrack::s_TrackWidth; x++)
-			m_Buffer[y][x] = convertDirectionToDisplayChar(trackArray[y][x]);
+	float zoomSteps = 0.1f; // 0.1 per char
+	Vector2D zoomCenter = cars[0]->GetPosition().Round(zoomSteps);
+	float zoomHeight = 5.0f;
+	float zoomWidth = 5.0f;
 
-	// Draw the cars onto the trackArray
-	for (const Car* car : cars)
+	// calculate the alocation for the buffer
+	int bufferHeight = track.GetHeight() + std::ceil(zoomHeight / zoomSteps) + 1;
+	int bufferWidth = track.GetWidth() + std::ceil(zoomWidth / zoomSteps) + 1;
+
+	// resize the buffer
+	m_Buffer.resize(bufferHeight);
+	for (auto& line : m_Buffer)
+		line.resize(bufferWidth, ' ');
+
+	DrawMapOnBuffer(track);
+	DrawCarsOnBuffer(cars);
+	DrawCloseUp(track, cars, zoomCenter, zoomWidth, zoomHeight, zoomSteps);
+	DrawBufferOnScreen();
+}
+
+void AsciiRenderer::DrawMapOnBuffer(const ATrack& track)
+{
+	// duplicate the track on the map buffer
+	m_MapBuffer.resize(track.GetHeight());
+	for (auto& line : m_MapBuffer)
 	{
-		IntVector2D carPosition = track.MapOntoTrack(car->GetPosition());
+		line.clear();
+		line.resize(track.GetWidth(), ' ');
+	}
+	track.CopyTrack(m_MapBuffer);
+
+	// Draw the track
+	for (uint8_t y = 0; y < track.GetHeight(); y++)
+		for (uint8_t x = 0; x < track.GetWidth(); x++)
+			m_Buffer[y][x] = convertDirectionToDisplayChar(m_MapBuffer[y][x]);
+}
+
+void AsciiRenderer::DrawCarsOnBuffer(const std::array<std::shared_ptr<Car>, CARS_AMOUNT>& cars)
+{
+	// Draw the cars
+	for (auto car : cars)
+	{
+		IntVector2D carPosition = car->GetPosition().Round(0.1f);
 		char carNumber = car->GetDisplayChar();
-		if (carPosition.y >= 0 && carPosition.y < FigureEightTrack::s_TrackHeight
-			&& carPosition.x >= 0 && carPosition.x < FigureEightTrack::s_TrackWidth)
+		if (carPosition.y >= 0 && carPosition.y < m_Buffer.size()
+			&& carPosition.x >= 0 && carPosition.x < m_Buffer[0].size())
 			m_Buffer[carPosition.y][carPosition.x] = carNumber;
 		else
 			std::cout << "Unable to draw: " << car->GetId() << std::endl;
 	}
+}
 
+void AsciiRenderer::DrawCloseUp(const ATrack& track, const std::array<std::shared_ptr<Car>, CARS_AMOUNT>& cars, const Vector2D& center, float width, float height, float stepping)
+{
 	// print zoom level (0.1 per char)
-	// Vector2D carPos = Vector2D(FigureEightTrack::s_TrackWidth / 2.0f, FigureEightTrack::s_TrackHeight / 2.0f).Round(0.1f);
-	float zoomSizeX = 2.0f;
-	float zoomSizeY = 2.0f;
-	float zoomStep = 0.1f;
-	Vector2D carPos = cars[0]->GetPosition().Round(zoomStep);
+	float halfWidth = width / 2.0f;
+	float halfHeight = height / 2.0f;
+
 	int bufferYLineIndex = 0;
-	for (float y = carPos.y - zoomSizeY; y < carPos.y + zoomSizeY; y += zoomStep)
+	for (float y = center.y - halfHeight; y < center.y + halfHeight; y += stepping)
 	{
-		for (float x = carPos.x - zoomSizeX; x < carPos.x + zoomSizeX; x += zoomStep)
+		int bufferXColumnIndex = track.GetWidth();
+		for (float x = center.x - halfWidth; x < center.x + halfWidth; x += stepping)
 		{
 			char toDisplay;
 			Vector2D pos = { x, y };
@@ -60,21 +94,25 @@ void AsciiRenderer::Render(const FigureEightTrack& track, const std::array<Car*,
 			// if it doesn't collide with a map draw the road display char
 			else
 			{
-				char dir = track.GetTrackChar(track.MapOntoTrack(pos));
+				char dir = track.GetTrackChar(track.MapPositionOnTrack(pos));
 				toDisplay = convertDirectionToDisplayChar(dir);
 			}
 
-			m_Buffer[bufferYLineIndex].push_back(toDisplay);
+			m_Buffer[bufferYLineIndex][bufferXColumnIndex] = toDisplay;
+			bufferXColumnIndex++;
 		}
 		bufferYLineIndex++;
 		if (bufferYLineIndex >= m_Buffer.size())
 		{
 			m_Buffer.resize(m_Buffer.size() + 1);
 			// fill with empty spaces
-			m_Buffer.back().resize(FigureEightTrack::s_TrackWidth, ' ');
+			m_Buffer.back().resize(track.GetWidth(), ' ');
 		}
 	}
+}
 
+void AsciiRenderer::DrawBufferOnScreen()
+{
 	// print the all buffer in one shot to avoid flickering (add \n at the end of each line)
 	size_t allocationSize = 0;
 	for (auto& line : m_Buffer)

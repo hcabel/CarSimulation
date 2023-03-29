@@ -3,12 +3,16 @@
 #include "Vector2D.h"
 #include "IntVector2D.h"
 
+// -- SELECT HOW MANY CARS YOU WANT --
 #define CARS_AMOUNT 10
-// So I didn't implement switching lane, and unless the car is fast enough to jump a car it will get stuck behind lol
+
+// -- SELECT A TRACK --
+// 0 or 1 (Currently only 2 map)
+#define SELECTED_MAP 1
+
+// So I didn't implement switching lane, and unless the car is fast enough to skip the next car it will get stuck behind lol
 // Turn this define to 1 to see all the car in a traffic jam
 #define TRAFFIC_JAM_MODE 0
-// Select one of the map between (0 and 1)
-#define USE_MAP 1
 
 constexpr float MinimumCarsAcceleration = 0.1f;
 constexpr float MinimumCarsMaxSpeed = 0.25f;

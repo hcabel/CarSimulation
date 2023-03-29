@@ -20,7 +20,7 @@ class Car
 {
 
 public:
-	Car(const FigureEightTrack& track, uint8_t id, Vector2D spawnPoint, float acceleration = -1, float maxSpeed = -1)
+	Car(const ATrack& track, uint8_t id, Vector2D spawnPoint, float acceleration = -1, float maxSpeed = -1)
 		: m_Track(track),
 		m_Id(id),
 		m_Position(spawnPoint),
@@ -31,7 +31,7 @@ public:
 		std::cout << "Car " << GetDisplayChar() << " spawned at " << m_Position
 			<< " maxspeed: " << m_MaxSpeed << " acceleration: " << m_Acceleration
 			<< std::endl;
-		IntVector2D currentTrackTilePosition = m_Track.MapOntoTrack(m_Position);
+		IntVector2D currentTrackTilePosition = m_Track.MapPositionOnTrack(m_Position);
 		char currentTrackTileDirectionChar = m_Track.GetTrackChar(currentTrackTilePosition);
 
 		m_ForwardVector = GetDirectionVector(currentTrackTileDirectionChar);
@@ -61,7 +61,7 @@ public:
 	/** Move the car 1 step forward */
 	void Move()
 	{
-		IntVector2D currentTrackTilePosition = m_Track.MapOntoTrack(m_Position);
+		IntVector2D currentTrackTilePosition = m_Track.MapPositionOnTrack(m_Position);
 		char currentTrackTileDirectionChar = m_Track.GetTrackChar(currentTrackTilePosition);
 
 		// Accelerate or stop the car if there is an intersection ahead
@@ -78,6 +78,7 @@ public:
 		// Get target point, where do we want to go next
 		Vector2D newForwardVector = FindNextDirection(currentTrackTilePosition);
 
+#if TRAFFIC_JAM_MODE
 		// Look for a position that does not collide with any other car
 		Vector2D newPosition;
 		bool collideWithOtherCar;
@@ -88,8 +89,10 @@ public:
 
 			// Check if the new position collide with any of the ca
 			collideWithOtherCar = false;
-			for (const Car* car : m_Track.GetCarsOnTrack())
+			for (auto carPtr: m_Track.GetCarsOnTrack())
 			{
+				auto car = carPtr.lock();
+
 				// Do not check collision with himself
 				if (car->GetId() == m_Id)
 					continue;
@@ -113,6 +116,11 @@ public:
 			m_ForwardVector = newForwardVector;
 			m_Speed = newSpeed;
 		}
+#else
+		m_Position = m_Position + newForwardVector * Vector2D(newSpeed);
+		m_ForwardVector = newForwardVector;
+		m_Speed = newSpeed;
+#endif
 
 		// Update directionChar
 		m_LastTrackDirection = GetDirectionChar();
@@ -134,7 +142,7 @@ public:
 		float carsMininumDistanceRequired = CAR_SIZE_RADIUS * 2.0f;
 		// Here there is a bug :D
 		// when 2 cars follow each other too much the gab bewteen the vector length and the carsMinimumDistanceRequired is too small and the floating point bug
-		// Example that I saw vector length equal 0.49999998 - 0.5000000 then the result became -2.21546894616e-8 
+		// Example that I saw vector length equal 0.49999998 - 0.5000000 then the result became -2.21546894616e-8
 		// TODO: Fix that if possible even though rounding is working pretty good
 		float roundedVectorBetweenLengthFloat = std::round(vectorBetween.Length() * 1000.0f) / 1000.0f;
 		return (roundedVectorBetweenLengthFloat - carsMininumDistanceRequired);
@@ -239,7 +247,7 @@ private:
 	}
 
 public:
-	const FigureEightTrack& GetTrack() const { return (m_Track); }
+	const ATrack& GetTrack() const { return (m_Track); }
 
 	Vector2D GetPosition() const { return (m_Position); }
 	Vector2D GetForwardVector() const { return (m_ForwardVector); }
@@ -250,7 +258,7 @@ public:
 
 	char GetDirectionChar() const
 	{
-		auto trackPosition = m_Track.MapOntoTrack(m_Position);
+		auto trackPosition = m_Track.MapPositionOnTrack(m_Position);
 		char trackChar = m_Track.GetTrackChar(trackPosition);
 		if (trackChar == INTERSECTION)
 			return (m_LastTrackDirection);
@@ -259,7 +267,7 @@ public:
 
 private:
 	/** Reference onto the track that the cars is currently driving onto */
-	const FigureEightTrack& m_Track;
+	const ATrack& m_Track;
 	/** Id of the car */
 	const uint8_t m_Id;
 	/* Car max speed, (between 0 -> 1) */
