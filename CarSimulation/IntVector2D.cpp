@@ -28,7 +28,7 @@ IntVector2D IntVector2D::operator+(const IntVector2D& other) const
 	return IntVector2D(x + other.x, y + other.y);
 }
 
-IntVector2D IntVector2D::operator+(const Vector2D other) const
+Vector2D IntVector2D::operator+(const Vector2D other) const
 {
 	return IntVector2D(x + static_cast<int>(std::round(other.x)), y + static_cast<int>(std::round(other.y)));
 }
@@ -43,7 +43,7 @@ IntVector2D IntVector2D::operator-(const IntVector2D& other) const
 	return IntVector2D(x - other.x, y - other.y);
 }
 
-IntVector2D IntVector2D::operator-(const Vector2D other) const
+Vector2D IntVector2D::operator-(const Vector2D other) const
 {
 	return IntVector2D(x - static_cast<int>(std::round(other.x)), y - static_cast<int>(std::round(other.y)));
 }
@@ -108,12 +108,12 @@ bool IntVector2D::operator!=(const IntVector2D& other) const
 	return false;
 }
 
-IntVector2D IntVector2D::Normalize() const
+Vector2D IntVector2D::Normalize() const
 {
 	float length = Length();
 	if (length == 0.0f)
-		return IntVector2D(0, 0);
-	return IntVector2D(Vector2D(x / length, y / length).Round());
+		return Vector2D(0, 0);
+	return Vector2D(Vector2D(x / length, y / length).Round());
 }
 
 float IntVector2D::Length() const

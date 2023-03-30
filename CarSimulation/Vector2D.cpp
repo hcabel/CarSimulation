@@ -1,7 +1,11 @@
 #include "Vector2D.h"
 #include "IntVector2D.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
 #include <cmath>
+
+Vector2D Vector2D::Zero = Vector2D(0.0f, 0.0f);
 
 Vector2D::Vector2D()
 	: x(0.0f), y(0.0f)
@@ -100,7 +104,7 @@ Vector2D& Vector2D::operator/=(const Vector2D& other)
 
 bool Vector2D::operator!=(const Vector2D& other) const
 {
-	return false;
+	return (x != other.x || y != other.y);
 }
 
 Vector2D Vector2D::Round(const float precision) const
@@ -131,6 +135,18 @@ float Vector2D::Dot(const Vector2D& other) const
 float Vector2D::AngleBetween(const Vector2D& other) const
 {
 	return (std::acos(Dot(other) / (Length() * other.Length())));
+}
+
+Vector2D& Vector2D::Rotate(const float degree)
+{
+	float randian = degree * (M_PI / 180.0);
+	float cosAngle = std::cos(randian);
+	float sinAngle = std::sin(randian);
+	float newX = x * cosAngle - y * sinAngle;
+	float newY = x * sinAngle + y * cosAngle;
+	x = newX;
+	y = newY;
+	return *this;
 }
 
 template<typename T2>

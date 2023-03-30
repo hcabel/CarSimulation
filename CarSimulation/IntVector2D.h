@@ -18,14 +18,14 @@ struct IntVector2D
 
 	/* ADD */
 	IntVector2D operator+(const IntVector2D& other) const;
-	IntVector2D operator+(const Vector2D other) const;
+	Vector2D operator+(const Vector2D other) const;
 	template<typename T2>
 	IntVector2D operator+(const T2 value) const;
 
 	/* SUB */
 	IntVector2D operator-() const;
 	IntVector2D operator-(const IntVector2D& other) const;
-	IntVector2D operator-(const Vector2D other) const;
+	Vector2D operator-(const Vector2D other) const;
 	template<typename T2>
 	IntVector2D operator-(const T2 value) const;
 
@@ -48,7 +48,7 @@ struct IntVector2D
 	IntVector2D& operator/=(const IntVector2D& other);
 	bool operator!=(const IntVector2D& other) const;
 
-	IntVector2D Normalize() const;
+	Vector2D Normalize() const;
 	float Length() const;
 	float Dot(const IntVector2D& other) const;
 	float Angle(const IntVector2D& other) const;

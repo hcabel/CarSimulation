@@ -52,6 +52,11 @@ struct Vector2D
 	float Length() const;
 	float Dot(const Vector2D& other) const;
 	float AngleBetween(const Vector2D& other) const;
+
+	Vector2D& Rotate(const float angle);
+
+	static Vector2D Zero;
+
 };
 
 std::ostream& operator<<(std::ostream& os, const Vector2D& vector);

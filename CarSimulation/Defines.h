@@ -3,16 +3,26 @@
 #include "Vector2D.h"
 #include "IntVector2D.h"
 
+/* SETTINGS **********************************************/
+
 // -- SELECT HOW MANY CARS YOU WANT --
-#define CARS_AMOUNT 10
+#define CARS_AMOUNT 8
 
 // -- SELECT A TRACK --
 // 0 or 1 (Currently only 2 map)
-#define SELECTED_MAP 1
+#define SELECTED_MAP 0
 
 // So I didn't implement switching lane, and unless the car is fast enough to skip the next car it will get stuck behind lol
 // Turn this define to 1 to see all the car in a traffic jam
 #define TRAFFIC_JAM_MODE 1
+
+// Turn on and off the multi threading
+#define MULTI_THREADING 0
+
+#define THREAD_REFRESH_DURATION std::chrono::milliseconds(250)
+// I recomand not to go bellow 100 ms because the console is not fast enough to render the game
+#define MAIN_THREAD_REFRESH_DURATION std::chrono::milliseconds(250)
+/* FOR CODE READABILIY *************************************/
 
 constexpr float MinimumCarsAcceleration = 0.1f;
 constexpr float MinimumCarsMaxSpeed = 0.25f;

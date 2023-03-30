@@ -10,14 +10,15 @@ void AsciiRenderer::Render(const ATrack& track, const std::array<std::shared_ptr
 	// Clear the screen
 	std::system("cls");
 
-	float zoomSteps = 0.1f; // 0.1 per char
-	Vector2D zoomCenter = cars[0]->GetPosition().Round(zoomSteps);
-	float zoomHeight = 5.0f;
-	float zoomWidth = 5.0f;
+	float zoomSteps = 1.0 / 5.0;
+	Vector2D zoomCenter = Vector2D(track.GetWidth() / 2.0f, track.GetHeight() / 2.0f);
+		// cars[0]->GetPosition().Round(zoomSteps);
+	float zoomWidth = track.GetWidth() ;
+	float zoomHeight = track.GetHeight();
 
 	// calculate the alocation for the buffer
-	int bufferHeight = track.GetHeight() + std::ceil(zoomHeight / zoomSteps) + 1;
 	int bufferWidth = track.GetWidth() + std::ceil(zoomWidth / zoomSteps) + 1;
+	int bufferHeight = track.GetHeight() + std::ceil(zoomHeight / zoomSteps) + 1;
 
 	// resize the buffer
 	m_Buffer.resize(bufferHeight);
@@ -81,7 +82,7 @@ void AsciiRenderer::DrawCloseUp(const ATrack& track, const std::array<std::share
 			int collideCarIndex = -1;
 			for (int i = 0; i < cars.size(); i++)
 			{
-				if (cars[i]->Collide(pos))
+				if (cars[i]->IsColliding(pos))
 				{
 					collideCarIndex = i;
 					break;
@@ -130,14 +131,14 @@ void AsciiRenderer::DrawBufferOnScreen()
 char AsciiRenderer::convertDirectionToDisplayChar(char dir)
 {
 	if (dir == LEFT || dir == RIGHT)
-		return ('-');
+		return ('.');
 	else if (dir == UP || dir == DOWN)
-		return ('|');
+		return ('.');
 	else if (dir == LEFT_UP || dir == RIGHT_DOWN)
-		return ('\\');
+		return ('.');
 	else if (dir == UP_RIGHT || dir == DOWN_LEFT)
-		return ('/');
+		return ('.');
 	else if (dir == INTERSECTION)
-		return ('X');
+		return ('.');
 	return (' ');
 }
