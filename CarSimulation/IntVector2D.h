@@ -32,6 +32,7 @@ struct IntVector2D
 	/* MULT */
 	IntVector2D operator*(const IntVector2D& other) const;
 	Vector2D operator*(const Vector2D& other) const;
+	Vector2D operator*(const int other) const;
 	template<typename T2>
 	IntVector2D operator*(const T2 value) const;
 	/* DIV */

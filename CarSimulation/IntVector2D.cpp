@@ -58,6 +58,11 @@ Vector2D IntVector2D::operator*(const Vector2D& other) const
 	return Vector2D(x * other.x, y * other.y);
 }
 
+Vector2D IntVector2D::operator*(const int other) const
+{
+	return Vector2D(x * other, y * other);
+}
+
 IntVector2D IntVector2D::operator/(const IntVector2D& other) const
 {
 	return IntVector2D(x / other.x, y / other.y);

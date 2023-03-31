@@ -23,7 +23,7 @@ IntVector2D ATrack::MapPositionOnTrack(const Vector2D& position) const
 bool ATrack::IsRoad(char c) const
 {
 	if (c == UP || c == UP_RIGHT || c == RIGHT || c == RIGHT_DOWN
-		|| c == DOWN || c == DOWN_LEFT || c == LEFT || c == LEFT_UP)
+		|| c == DOWN || c == DOWN_LEFT || c == LEFT || c == LEFT_UP || c == INTERSECTION)
 		return (true);
 	return (false);
 }
@@ -35,7 +35,7 @@ bool ATrack::IsHereARoad(const IntVector2D& pos) const
 
 bool ATrack::IsHereARoad(const Vector2D& pos) const
 {
-	return IsRoad(GetTrackChar(pos));
+	return IsHereARoad(MapPositionOnTrack(pos));
 }
 
 bool ATrack::IsHereInMapBounds(const IntVector2D& pos) const
@@ -55,7 +55,8 @@ Vector2D ATrack::GetSpawnPoint() const
 	int randX = std::rand() % GetWidth();
 	int randY = std::rand() % GetHeight();
 	Vector2D startPosition = Vector2D(static_cast<float>(randX), static_cast<float>(randY));
-	while (IsHereARoad(startPosition) == false)
+	char trackChar = ' ';
+	while (IsRoad(trackChar) == false || trackChar == INTERSECTION)
 	{
 		startPosition.x += 1;
 		if (startPosition.x >= GetWidth())
@@ -65,6 +66,7 @@ Vector2D ATrack::GetSpawnPoint() const
 			if (startPosition.y >= GetHeight())
 				startPosition.y = 0;
 		}
+		trackChar = GetTrackChar(startPosition);
 	}
 	// center the spawn point to the middle of the tile
 	startPosition.x += 0.5f;

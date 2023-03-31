@@ -5,8 +5,8 @@ Car::Car(const ATrack& track, uint8_t id, Vector2D spawnPoint, float acceleratio
 	m_Id(id),
 	m_Position(spawnPoint),
 	// TODO: fix the random to be more evenly random (using std::max will just clamp the low value which make getting the lowest value more likely)
-	m_MaxSpeed(CLAMP(CAR_MIN_ACCELERATION, 1.0f, maxSpeed == -1 ? static_cast<float>(std::rand()) / RAND_MAX : maxSpeed)),
-	m_Acceleration(CLAMP(CAR_MIN_MAXSPEED, 1.0f, acceleration == -1 ? static_cast<float>(std::rand()) / RAND_MAX : acceleration))
+	m_MaxSpeed(CLAMP(CAR_MIN_MAXSPEED, CAR_MAX_MAXSPEED, maxSpeed == -1 ? static_cast<float>(std::rand()) / RAND_MAX : maxSpeed)),
+	m_Acceleration(CLAMP(CAR_MIN_ACCELERATION, CAR_MAX_ACCELERATION, acceleration == -1 ? static_cast<float>(std::rand()) / RAND_MAX : acceleration))
 {
 	std::cout << "Car " << GetDisplayChar() << " spawned at " << m_Position
 		<< " maxspeed: " << m_MaxSpeed << " acceleration: " << m_Acceleration
@@ -57,18 +57,42 @@ void Car::Move()
 	float newSpeed = std::min(m_MaxSpeed, m_Speed + m_Acceleration * m_MaxSpeed);
 
 	// Get target point, where do we want to go next (forward)
-	Vector2D newDirection = FindNextDirection(currentTrackTilePosition);
+	Vector2D newDirection;
+	if (currentTrackTileDirectionChar != CENTER)
+		newDirection = FindNextDirection(currentTrackTilePosition);
+	else
+	{
+		// In case something wrong happen we keep our current direction
+		// but if were leaving the map we change the direction toward the center of the map
+		if (m_Track.IsHereInMapBounds(currentTrackTilePosition))
+			m_ForwardVector = m_Position - m_Track.GetMapCenter();
+		newDirection = m_ForwardVector;
+	}
 
-#if TRAFFIC_JAM_MODE
-
+#if DRIVING_MODE == 0 // no collision just follow the road
+	m_Speed = newSpeed;
+	m_ForwardVector = newDirection;
+	m_Position = m_Position + newDirection * Vector2D(newSpeed);
+#elif DRIVING_MODE == 1 // collision detection (traffic jam simulator)
 	// Compute new position
-	Vector2D positionToCheck = m_Position + newDirection * Vector2D(newSpeed);
+	Vector2D positionToCheck = m_Position + newDirection * Vector2D(newSpeed + SAFE_DISTANCE_BETWEEN_CARS);
+
+	float extraCollidingDistance;
+	if (IsCollidingWithOtherCar(positionToCheck, m_Track.GetCarsOnTrack(), &extraCollidingDistance))
+		newSpeed = CalculateMaxSpeedWithoutCollision(newSpeed - extraCollidingDistance, newDirection);
+
+	// Move the car
+	m_Position += newDirection * Vector2D(newSpeed);
+	m_ForwardVector = newDirection;
+	m_Speed = newSpeed;
+
+#else // collision + lane change (Work In Progress)
+	// Compute new position
+	Vector2D positionToCheck = m_Position + newDirection * Vector2D(newSpeed + SAFE_DISTANCE_BETWEEN_CARS);
 
 	float extraCollidingDistance;
 	if (IsCollidingWithOtherCar(positionToCheck, m_Track.GetCarsOnTrack(), &extraCollidingDistance))
 	{
-		if (GetId() == 0)
-			std::cout << "Car " << GetDisplayChar() << " is colliding with other car" << std::endl;
 		// If there is a car in front of you try to change lane
 		Vector2D newLaneDirection = FindNextLaneDirection(currentTrackTilePosition, currentTrackTileDirectionChar);
 
@@ -82,6 +106,11 @@ void Car::Move()
 			{
 				// Slow down to avoid crashing into the car in front of you
 				newSpeed = CalculateMaxSpeedWithoutCollision(newSpeed - extraCollidingDistance, newDirection);
+			}
+			else if (m_Track.GetTrackChar(m_Track.MapPositionOnTrack(positionToCheck)) == CENTER)
+			{
+				// Slow down to avoid getting out of track
+				m_Speed = (positionToCheck - m_Position).Length();
 			}
 			else
 			{
@@ -97,14 +126,17 @@ void Car::Move()
 	m_Position += newDirection * Vector2D(newSpeed);
 	m_ForwardVector = newDirection;
 	m_Speed = newSpeed;
-#else
-	m_Position = m_Position + newDirection * Vector2D(newSpeed);
-	m_ForwardVector = newDirection;
-	m_Speed = newSpeed;
 #endif
 
 	// Update directionChar
 	m_LastTrackDirection = GetDirectionChar();
+}
+
+bool Car::IsColliding(const std::shared_ptr<Car>& car) const
+{
+	Vector2D vectorBetween = car->GetPosition() - m_Position;
+	float carsMininumDistanceRequired = CAR_SIZE_RADIUS * 2.0f;
+	return (vectorBetween.Length() <= carsMininumDistanceRequired);
 }
 
 float Car::FindExtraDistanceBetweenCars(const std::shared_ptr<Car>& car, const Vector2D& fromThisPosition) const
@@ -115,7 +147,7 @@ float Car::FindExtraDistanceBetweenCars(const std::shared_ptr<Car>& car, const V
 	// when 2 cars follow each other too much the gab bewteen the vector length and the carsMinimumDistanceRequired is too small and the floating point bug
 	// Example that I saw vector length equal 0.49999998 - 0.5000000 then the result became -2.21546894616e-8
 	// TODO: Fix that if possible even though rounding is working pretty good
-	float roundedVectorBetweenLengthFloat = std::round(vectorBetween.Length() * 1000.0f) / 1000.0f;
+	float roundedVectorBetweenLengthFloat = std::round(vectorBetween.Length() * 10000.0f) / 10000.0f;
 	return (roundedVectorBetweenLengthFloat - carsMininumDistanceRequired);
 }
 
@@ -147,19 +179,31 @@ Vector2D Car::FindNextLaneDirection(const IntVector2D& currentTrackTilePosition,
 
 float Car::CalculateMaxSpeedWithoutCollision(float currentSpeed, const Vector2D& direction) const
 {
-	float maxSpeed = currentSpeed;
+	float bestSpeed = currentSpeed;
 	float extraSpeed;
 	bool isColliding;
 
+	int i = 0;
 	// using IsCollidingWithOtherCar we should be able to calculate the extra distance to move to not collide with any other car in one go
 	// but just in case we verify that there is no collision
 	do
 	{
-		isColliding = IsCollidingWithOtherCar(m_Position + direction * Vector2D(maxSpeed), m_Track.GetCarsOnTrack(), &extraSpeed);
+		// Weird bug with exponential floating point (describe 2 function before)
+		i++;
+		if (i >= 100)
+		{
+			bestSpeed = 0.0f;
+			break;
+		}
+		isColliding = IsCollidingWithOtherCar(
+			m_Position + direction * Vector2D(bestSpeed),
+			m_Track.GetCarsOnTrack(), &extraSpeed);
 		if (isColliding)
-			maxSpeed -= extraSpeed;
-	} while (isColliding && maxSpeed > 0.0f);
-	return std::max(0.0f, maxSpeed);
+			bestSpeed -= extraSpeed;
+
+	} while (isColliding && bestSpeed > 0.0f);
+
+	return std::max(0.0f, bestSpeed - SAFE_DISTANCE_BETWEEN_CARS);
 }
 
 bool Car::IsCollidingWithOtherCar(const Vector2D& position, const std::vector<std::weak_ptr<Car>>& cars, float* outExtraDistance) const
@@ -176,33 +220,32 @@ bool Car::IsCollidingWithOtherCar(const Vector2D& position, const std::vector<st
 		if (car->GetId() == m_Id)
 			continue;
 
-		float distanceBetweenCars = (car->GetPosition() - position).Length();
+		float distanceBetweenCars = FindExtraDistanceBetweenCars(car, position);
 		if (distanceBetweenCars < closestCarDistance)
 		{
 			closestCarDistance = distanceBetweenCars;
 			closestCar = car;
 		}
 	}
+	// Avoid getting to close from other cars
+	closestCarDistance -= SAFE_DISTANCE_BETWEEN_CARS;
+	if (closestCarDistance >= 0.0)
+		return (false);
 
-	// Check if the closestCar car and himself are colliding and return the extra distance
-	float extraDistance = FindExtraDistanceBetweenCars(closestCar, position);
-	if (extraDistance < 0.0f)
-	{
-		if (outExtraDistance)
-			*outExtraDistance = std::max(0.0f, -extraDistance);
-		return (true);
-	}
-	return (false);
+	if (outExtraDistance)
+		*outExtraDistance = -closestCarDistance;
+	return (true);
 }
 
 bool Car::IsNextTileAnIntersection(const IntVector2D& currentTrackTilePosition, const IntVector2D& trackTileDirectionVector) const
 {
-	return (m_Track.GetTrackChar(currentTrackTilePosition + trackTileDirectionVector) == INTERSECTION);
+	// In fact we check two tiles ahead because otherwise we get too close from the intersection and other car may see us as an obstacle
+	return (m_Track.GetTrackChar(currentTrackTilePosition + trackTileDirectionVector * 2) == INTERSECTION);
 }
 
 bool Car::IsNextIntersectionRedLightForMe(char trackDirectionChar) const
 {
-	constexpr int LightSwitchIntervalInSecond = 10;
+	constexpr int LightSwitchIntervalInSecond = 5;
 	constexpr uint64_t NumberOfSecondInAMinute = 60ui64;
 
 	// Calculate at which second were at in the current minute
@@ -219,14 +262,15 @@ int Car::GetTraficLightModuloIndex(const char trackDirectionChar) const
 {
 	// We assume that the traffic light is always a 4 way intersection (2 input, 2 output)
 	// and that it's either on diagonal or normal (no mix)
+	// note that the index are either 0 or 2 that's because we want a delay to allow the car to go through before allowing the other car to go through
 	if (trackDirectionChar == RIGHT_DOWN || trackDirectionChar == LEFT_UP)
 		return 0;
 	else if (trackDirectionChar == UP_RIGHT || trackDirectionChar == DOWN_LEFT)
-		return 1;
+		return 2;
 	else if (trackDirectionChar == RIGHT || trackDirectionChar == LEFT)
 		return 0;
 	else if (trackDirectionChar == UP || trackDirectionChar == DOWN)
-		return 1;
+		return 2;
 
 	assert(false);
 }

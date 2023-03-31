@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Defines.h"
 #include "Vector2D.h"
 #include "IntVector2D.h"
 #include "Track.h"
@@ -7,11 +8,6 @@
 #include <iostream>
 #include <chrono>
 #include <cassert>
-
-#define CAR_SIZE_RADIUS 0.25f
-#define CAR_MIN_ACCELERATION 0.1f
-#define CAR_MIN_MAXSPEED 0.5f
-#define CAR_MAX_STEERINGANGLE_DEGREE 45.0f
 
 /**
  * Car that will ride onto the track.
@@ -29,12 +25,19 @@ public:
 	void Move();
 
 	/**
-	 * Check whether or not a point is colliding with the car.
+	 * Check whether or not a point is inside the car.
 	 *
 	 * \param position Position of the point to check.
-	 * \return true if the point is colliding with the car, false otherwise.
+	 * \return true if the point is inside the car, false otherwise.
 	 */
-	bool IsColliding(Vector2D position) const { return (m_Position - position).Length() < CAR_SIZE_RADIUS; }
+	bool IsInside(Vector2D position) const { return (m_Position - position).Length() < CAR_SIZE_RADIUS; }
+	/**
+	 * Check whether or not a car is colliding with this car.
+	 *
+	 * \param car The other car that we want to check collision with.
+	 * \return true if the car is colliding with this car, false otherwise.
+	 */
+	bool IsColliding(const std::shared_ptr<Car>& car) const;
 	/**
 	 * Calculate the extra distance between two car.
 	 * Extra mean the distance between the two cars minus the radius of both cars.

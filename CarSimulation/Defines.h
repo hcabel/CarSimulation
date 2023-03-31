@@ -9,19 +9,39 @@
 #define CARS_AMOUNT 8
 
 // -- SELECT A TRACK --
-// 0 or 1 (Currently only 2 map)
+// 0 = Figure eight track map
+// 1 = Custom map
 #define SELECTED_MAP 0
 
-// So I didn't implement switching lane, and unless the car is fast enough to skip the next car it will get stuck behind lol
-// Turn this define to 1 to see all the car in a traffic jam
-#define TRAFFIC_JAM_MODE 1
+// -- SELECT A DRIVING MODE --
+// 0 = No colision
+// 1 = Colision (taffic jam simulator)
+// 2 = switch lane
+#define DRIVING_MODE 2
 
 // Turn on and off the multi threading
-#define MULTI_THREADING 0
+#define MULTI_THREADING 1
 
-#define THREAD_REFRESH_DURATION std::chrono::milliseconds(250)
-// I recomand not to go bellow 100 ms because the console is not fast enough to render the game
-#define MAIN_THREAD_REFRESH_DURATION std::chrono::milliseconds(250)
+#define THREAD_REFRESH_DURATION std::chrono::milliseconds(100)
+// I recommend not to go bellow 100 ms because the console is not fast enough to render the game
+#define MAIN_THREAD_REFRESH_DURATION std::chrono::milliseconds(100)
+
+/* CAR SETTINGS */
+
+// The car a circle and this define control the radius of the circle.
+#define CAR_SIZE_RADIUS 0.2f
+// Add safe distance, to avoid cars to get to close to each other
+// even though with this value to 0 the cars wont crash but sometime they might not be able to open there door ^^
+// between 0 -> car max speed (greater and it wont be taken for consideration anyway)
+#define SAFE_DISTANCE_BETWEEN_CARS 0.1f
+// Acceleration is relative to the max speed (0 -> 1)
+#define CAR_MIN_ACCELERATION 0.1f
+#define CAR_MAX_ACCELERATION 1.0f
+// Max speed (0 -> 1)
+#define CAR_MIN_MAXSPEED 0.1f
+#define CAR_MAX_MAXSPEED 0.2f
+#define CAR_MAX_STEERINGANGLE_DEGREE 45.0f
+
 /* FOR CODE READABILIY *************************************/
 
 constexpr float MinimumCarsAcceleration = 0.1f;

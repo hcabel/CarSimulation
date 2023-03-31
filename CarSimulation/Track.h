@@ -34,6 +34,7 @@ public:
 	bool IsHereARoad(const Vector2D& pos) const;
 	/* return whether or not the given position is out of track map bounds */
 	bool IsHereInMapBounds(const IntVector2D& pos) const;
+	Vector2D GetMapCenter() const { return Vector2D(m_Width / 2 + 0.5f, m_Height / 2 + 0.5f); }
 
 public:
 	int GetWidth() const { return m_Width; }

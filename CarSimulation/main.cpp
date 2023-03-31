@@ -41,15 +41,18 @@ void ThreadFunction(std::shared_ptr<Car> car)
 	std::chrono::nanoseconds time = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 	std::chrono::nanoseconds timeTakenToLoop = {};
 	std::chrono::nanoseconds currentTime = {};
+	std::chrono::nanoseconds sleepTime = {};
 
 	// Thread loop
 	while (true)
 	{
 		car->Move();
 
-		std::this_thread::sleep_for(
-			THREAD_REFRESH_DURATION
-		);
+		currentTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+		timeTakenToLoop = currentTime - time;
+		sleepTime = std::chrono::nanoseconds(std::max(0ll, (std::chrono::duration_cast<std::chrono::nanoseconds>(THREAD_REFRESH_DURATION) - timeTakenToLoop).count()));
+		std::this_thread::sleep_for(sleepTime);
+		time = currentTime - sleepTime;
 	}
 }
 
@@ -60,23 +63,43 @@ static int MainLoopGameThread(const ATrack& track, const std::array<std::shared_
 	std::chrono::nanoseconds time = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 	std::chrono::nanoseconds timeTakenToLoop = {};
 	std::chrono::nanoseconds currentTime = {};
+	std::chrono::nanoseconds sleepTime = {};
 
 	// Main loop
 	while (true)
 	{
-		renderer.Render(track, cars);
 
 #if MULTI_THREADING == 0
 		for (auto car : cars)
 			car->Move();
 #endif
 
+		renderer.Render(track, cars);
+
+		// check if no cars are overlapping
+		for (int i = 0; i < CARS_AMOUNT; i++)
+		{
+			for (int j = i + 1; j < CARS_AMOUNT; j++)
+			{
+				if (cars[i]->IsColliding(cars[j]))
+				{
+					std::cout << "Collision between car '" << cars[i]->GetDisplayChar() << "' and car '" << cars[j]->GetDisplayChar() << "'" << std::endl;
+					break;
+				}
+			}
+
+			// make sure it's on the track
+			if (track.IsHereARoad(track.MapPositionOnTrack(cars[i]->GetPosition())) == false)
+			{
+				std::cout << "Car '" << cars[i]->GetDisplayChar() << "' is off the track" << std::endl;
+			}
+		}
+
 		currentTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 		timeTakenToLoop = currentTime - time;
-		time = currentTime;
-		std::this_thread::sleep_for(
-			MAIN_THREAD_REFRESH_DURATION
-		);
+		sleepTime = std::chrono::nanoseconds(std::max(0ll, (std::chrono::duration_cast<std::chrono::nanoseconds>(MAIN_THREAD_REFRESH_DURATION) - timeTakenToLoop).count()));
+		std::this_thread::sleep_for(sleepTime);
+		time = currentTime - sleepTime;
 	}
 }
 
@@ -92,15 +115,11 @@ int main()
 	ATrack track = MultiIntersectionTrack();
 #endif
 
-	cars[0] = std::make_shared<Car>(track, 0, track.GetSpawnPoint(), 1.0f, 1.0f);
-
-	for (int i = 1; i < CARS_AMOUNT; i++)
+	for (int i = 0; i < CARS_AMOUNT; i++)
 	{
 		Vector2D spawnPoint = GetUniqueSpawnPoint(track, cars);
-		// Vector2D spawnPoint = Vector2D(7.5 + -2.0 * i, 0.5);
 
 		cars[i] = std::make_shared<Car>(track, i, spawnPoint);
-		// cars[i] = std::make_shared<Car>(track, i, spawnPoint, 1, 0.50 + 0.2 * i);
 		track.RegisterNewCarOnTrack(cars[i]);
 	}
 

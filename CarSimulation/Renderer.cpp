@@ -1,5 +1,7 @@
 #include "Renderer.h"
 
+#define RENDER_FULL_MAP_CLOSE_UP 0
+
 void AsciiRenderer::Render(const ATrack& track, const std::array<std::shared_ptr<Car>, CARS_AMOUNT>& cars)
 {
 	for (auto& line : m_Buffer)
@@ -10,11 +12,18 @@ void AsciiRenderer::Render(const ATrack& track, const std::array<std::shared_ptr
 	// Clear the screen
 	std::system("cls");
 
+#if RENDER_FULL_MAP_CLOSE_UP == 1
 	float zoomSteps = 1.0 / 5.0;
-	Vector2D zoomCenter = Vector2D(track.GetWidth() / 2.0f, track.GetHeight() / 2.0f);
-		// cars[0]->GetPosition().Round(zoomSteps);
-	float zoomWidth = track.GetWidth() ;
+	Vector2D zoomCenter = track.GetMapCenter();
+	float zoomWidth = track.GetWidth();
 	float zoomHeight = track.GetHeight();
+#else
+	float zoomSteps = 0.1f;
+	Vector2D zoomCenter = cars[0]->GetPosition().Round(zoomSteps);
+	float zoomWidth = 3.0f;
+	float zoomHeight = 3.0f;
+
+#endif
 
 	// calculate the alocation for the buffer
 	int bufferWidth = track.GetWidth() + std::ceil(zoomWidth / zoomSteps) + 1;
@@ -82,7 +91,7 @@ void AsciiRenderer::DrawCloseUp(const ATrack& track, const std::array<std::share
 			int collideCarIndex = -1;
 			for (int i = 0; i < cars.size(); i++)
 			{
-				if (cars[i]->IsColliding(pos))
+				if (cars[i]->IsInside(pos))
 				{
 					collideCarIndex = i;
 					break;
@@ -131,13 +140,13 @@ void AsciiRenderer::DrawBufferOnScreen()
 char AsciiRenderer::convertDirectionToDisplayChar(char dir)
 {
 	if (dir == LEFT || dir == RIGHT)
-		return ('.');
+		return ('-');
 	else if (dir == UP || dir == DOWN)
-		return ('.');
+		return ('|');
 	else if (dir == LEFT_UP || dir == RIGHT_DOWN)
-		return ('.');
+		return ('\\');
 	else if (dir == UP_RIGHT || dir == DOWN_LEFT)
-		return ('.');
+		return ('/');
 	else if (dir == INTERSECTION)
 		return ('.');
 	return (' ');
